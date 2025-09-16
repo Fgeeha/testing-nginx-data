@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nginx Browser Testing</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .browser-info {
+            background: #e8f4f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        button {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #005a87;
+        }
+        .test-results {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Nginx Browser Data Testing</h1>
+        <p>Этот проект тестирует данные, которые различные браузеры отправляют на nginx сервер.</p>
+        
+        <div class="browser-info">
+            <h3>Информация о текущем браузере:</h3>
+            <p><strong>User Agent:</strong> <span id="userAgent"></span></p>
+            <p><strong>Language:</strong> <span id="language"></span></p>
+            <p><strong>Platform:</strong> <span id="platform"></span></p>
+            <p><strong>Screen Resolution:</strong> <span id="screen"></span></p>
+            <p><strong>Cookies Enabled:</strong> <span id="cookies"></span></p>
+        </div>
+
+        <h3>Тесты запросов:</h3>
+        <button onclick="testJSON()">Test JSON Request</button>
+        <button onclick="testXML()">Test XML Request</button>
+        <button onclick="testLargeFile()">Test Large File</button>
+        <button onclick="testMultipleRequests()">Test Multiple Requests</button>
+        <button onclick="testBrowserInfo()">Get Browser Info from Server</button>
+
+        <div id="results" class="test-results">
+            Результаты тестов будут отображены здесь...
+        </div>
+
+        <h3>Инструкции:</h3>
+        <ol>
+            <li>Откройте эту страницу в разных браузерах</li>
+            <li>Выполните различные тесты</li>
+            <li>Сравните логи nginx для анализа различий между браузерами</li>
+            <li>Логи сохраняются в <code>/var/log/nginx/browser_access.log</code></li>
+        </ol>
+    </div>
+
+    <script>
+        // Display current browser information
+        document.getElementById('userAgent').textContent = navigator.userAgent;
+        document.getElementById('language').textContent = navigator.language;
+        document.getElementById('platform').textContent = navigator.platform;
+        document.getElementById('screen').textContent = screen.width + 'x' + screen.height;
+        document.getElementById('cookies').textContent = navigator.cookieEnabled ? 'Yes' : 'No';
+
+        const resultsDiv = document.getElementById('results');
+
+        function addResult(message) {
+            const timestamp = new Date().toLocaleString();
+            resultsDiv.textContent += `[${timestamp}] ${message}\n`;
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        async function testJSON() {
+            addResult('Testing JSON endpoint...');
+            try {
+                const response = await fetch('/test/json');
+                const data = await response.json();
+                addResult(`JSON Response: ${JSON.stringify(data, null, 2)}`);
+            } catch (error) {
+                addResult(`JSON Error: ${error.message}`);
+            }
+        }
+
+        async function testXML() {
+            addResult('Testing XML endpoint...');
+            try {
+                const response = await fetch('/test/xml');
+                const text = await response.text();
+                addResult(`XML Response: ${text}`);
+            } catch (error) {
+                addResult(`XML Error: ${error.message}`);
+            }
+        }
+
+        async function testLargeFile() {
+            addResult('Testing large file endpoint...');
+            try {
+                const start = performance.now();
+                const response = await fetch('/test/large');
+                const end = performance.now();
+                const text = await response.text();
+                addResult(`Large file response (${end - start}ms): ${text.length} characters`);
+            } catch (error) {
+                addResult(`Large file Error: ${error.message}`);
+            }
+        }
+
+        async function testMultipleRequests() {
+            addResult('Testing multiple concurrent requests...');
+            const promises = [];
+            for (let i = 0; i < 5; i++) {
+                promises.push(fetch('/api/browser-info'));
+            }
+            
+            try {
+                const responses = await Promise.all(promises);
+                const results = await Promise.all(responses.map(r => r.json()));
+                addResult(`Multiple requests completed: ${results.length} responses`);
+                results.forEach((result, index) => {
+                    addResult(`  Response ${index + 1}: ${JSON.stringify(result)}`);
+                });
+            } catch (error) {
+                addResult(`Multiple requests Error: ${error.message}`);
+            }
+        }
+
+        async function testBrowserInfo() {
+            addResult('Getting browser info from server...');
+            try {
+                const response = await fetch('/api/browser-info', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Custom-Header': 'BrowserTest',
+                        'X-Test-ID': Math.random().toString(36).substring(7)
+                    },
+                    body: JSON.stringify({
+                        clientInfo: {
+                            userAgent: navigator.userAgent,
+                            language: navigator.language,
+                            platform: navigator.platform,
+                            screenResolution: `${screen.width}x${screen.height}`,
+                            timestamp: new Date().toISOString()
+                        }
+                    })
+                });
+                const data = await response.json();
+                addResult(`Server browser info: ${JSON.stringify(data, null, 2)}`);
+            } catch (error) {
+                addResult(`Browser info Error: ${error.message}`);
+            }
+        }
+
+        // Automatically run a test when page loads
+        window.addEventListener('load', () => {
+            addResult('Page loaded, browser detected');
+            testBrowserInfo();
+        });
+    </script>
+</body>
+</html>
